@@ -302,6 +302,26 @@ def calculate_match_result_score(home_team, away_team, league_id):
     total_score_home += average_goal_score(avg_home_goals)
     total_score_away += average_goal_score(avg_away_goals)
 
+    if leagues.check_if_league(league_id):
+        home_team_standings = get_league_standings_stats(home_team, league_id)[0]
+        away_team_standings = get_league_standings_stats(away_team, league_id)[0]
+
+        difference_in_league_position = home_team_standings['rank'] - away_team_standings['rank']
+        if difference_in_league_position > 0:
+            total_score_home += difference_in_league_position * 2
+        else:
+            total_score_away += difference_in_league_position * 2
+    else:
+        home_league = leagues.get_team_league_from_id(home_team)
+        away_league = leagues.get_team_league_from_id(away_team)
+        home_team_standings = get_league_standings_stats(home_team, home_league)[0]
+        away_team_standings = get_league_standings_stats(away_team, away_league)[0]
+
+        home_standings_score = 10 if home_team_standings < 4 else 3
+        total_score_home += home_standings_score
+        away_standings_score = 10 if away_team_standings < 4 else 3
+        total_score_away += away_standings_score
+
     return total_score_home, total_score_away
 
 
