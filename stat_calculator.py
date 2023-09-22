@@ -424,8 +424,8 @@ def calculate_match_result_score(home_team, away_team, league_id):
         max_total_home += 35
         max_total_away += 20
     else:
-        home_league = leagues.get_team_league_from_id(home_team)
-        away_league = leagues.get_team_league_from_id(away_team)
+        home_league = teams.get_team_league_from_id(home_team)
+        away_league = teams.get_team_league_from_id(away_team)
         home_team_standings = get_league_standings_stats(home_team, home_league)[0]
         away_team_standings = get_league_standings_stats(away_team, away_league)[0]
 
