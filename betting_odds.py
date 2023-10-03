@@ -23,17 +23,20 @@ def get_betting_odds_for_date(fixture_date, fixtures):
                 else:
                     querystring = {"date": fixture_date, "page": str(page), "bookmaker": "8"}
                     response = json.loads(api.get_request(odds_url, querystring))
+                try:
+                    for x in response['response']:
+                        if x['fixture']['id'] in fixtures:
+                            odds_list.append({
+                                "fixture": x['fixture']['id'],
+                                "date": x['fixture']['date'],
+                                "bookmaker_id": x['bookmakers'][0]['id'],
+                                "bookmaker": x['bookmakers'][0]['name'],
+                                "updated": x['update'],
+                                "bets": x['bookmakers'][0]['bets']
+                            })
 
-                for x in response['response']:
-                    if x['league']['id'] in fixtures:
-                        odds_list.append({
-                            "fixture": x['fixture']['id'],
-                            "date": x['fixture']['date'],
-                            "bookmaker_id": x['bookmakers'][0]['id'],
-                            "bookmaker": x['bookmakers'][0]['name'],
-                            "updated": x['update'],
-                            "bets": x['bookmakers'][0]['bets']
-                        })
+                except TypeError:
+                    pass
             return True, odds_list
         else:
             return False, "No Fixtures"

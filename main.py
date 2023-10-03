@@ -99,7 +99,7 @@ async def get_fixtures_odds(fix: Fixtures):
     :return: all fixtures as Json list
     """
     fixtures_date = f"{fix.date.strftime('%Y-%m-%d')}"
-    fix = fixtures.get_fixtures_by_date(fixtures_date, fix.is_main)
+    fix = fixtures.get_fixtures_by_date(fix.date, fix.is_main)
     fix_list = fixtures.get_list_of_main_fixture_ids(fix)
 
     return JSONResponse(get_betting_odds_for_date(fixtures_date, fix_list))
@@ -153,6 +153,16 @@ async def update_teams_previous_matches_in_league(main_leagues: MainLeague):
     return f"Updating {main_leagues.name}"
 
 
+@app.get("/api/update_todays_fixtures")
+async def update_teams_in_todays_fixtures(fix: Fixtures):
+    """
+    Updates teams within league
+    :param main_leagues: object
+    :return: list of teams updated
+    """
+    task.update_fixtures_for_date.delay(fix.date)
+    return f"Updating fixtures for {fix.date}"
+
 @app.get("/api/update_teams_leagues_for_date")
 async def update_all_teams_previous_matches_in_league(fix: Fixtures):
     """
@@ -197,6 +207,7 @@ async def test():
     # analyse_fixture(1044309, datetime.today())
     # fixtures.get_all_leagues_playing_for_date(datetime.today())
     #x = mg.get_all_records("teams")
-    dd = datetime.strptime("2023-09-19", '%Y-%m-%d')
-    stat_calculator.analyse_fixture(1047510, 40, dd)
+    dd = datetime.strptime("2023-10-02", '%Y-%m-%d')
+    # stat_calculator.analyse_fixture(1067562, 95, dd)
+    stat_calculator.get_top_results(dd)
     return "N"

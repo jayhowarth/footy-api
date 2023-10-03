@@ -250,7 +250,7 @@ def get_list_of_main_fixture_ids(fixtures):
     main_leagues = leagues.get_all_main_leagues()
     for fixture in fixtures:
         if fixture['league']['id'] in main_leagues[1]:
-            fixture_id_list.append(fixture['league']['id'])
+            fixture_id_list.append(fixture['fixture']['id'])
     return fixture_id_list
 
 
