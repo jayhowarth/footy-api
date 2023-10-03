@@ -9,7 +9,7 @@ url_local = "amqp://guest@localhost:5672//"
 
 
 app = Celery('footy',
-             broker=url_local,
+             broker=url_hog,
              include=['task'])
 
 #app = Celery('footy', broker='amqp://guest@localhost//')

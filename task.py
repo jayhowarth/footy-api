@@ -1,4 +1,5 @@
 import os
+import time
 
 import fixtures
 import teams
@@ -128,10 +129,26 @@ def generate_scores_for_matches(fixture_date):
         fix = get_fixtures_by_date(fixture_date, True)
     fixtures_list = []
     for fixture in fix['fixtures']:
+        print(f"Starting fixture: {fixture['fixture_id']}")
         fixture['scores'] = analyse_fixture(fixture['fixture_id'], fixture['league_id'], fixture_date)
         fixtures_list.append(fixture)
-        print(f"Fixture: {fixture['fixture_id']} - {fixture['home_name']} vs {fixture['away_name']}")
+        print(f"Added: {fixture['home_name']} vs {fixture['away_name']}")
     mg.update_one_record("upcoming_fixtures", querystring,
                          {"$set": {"fixtures": fixtures_list}})
 
     return fixtures_list
+
+
+@app.task
+def update_fixtures_for_date(fixture_date):
+    filtered_date = fixture_date.strftime('%Y-%m-%d')
+    querystring = {"date": filtered_date}
+    exists = mg.document_exists("upcoming_fixtures", querystring)
+    if exists:
+        mg.delete_one_record("upcoming_fixtures", querystring)
+    time.sleep(10)
+    get_fixtures_by_date(fixture_date, True)
+    print("Updated Fixtures")
+    time.sleep(10)
+    generate_scores_for_matches(fixture_date)
+    print("Generated Scores")
