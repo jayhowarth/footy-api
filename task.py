@@ -16,7 +16,7 @@ from fixtures import check_when_last_team_fixtures_updated, \
     get_fixtures_by_date, \
     get_all_h2h_matches
 from teams import check_when_last_team_fixtures_updated
-from stat_calculator import analyse_fixture
+from calculator.payload_generator import analyse_fixture
 from redis_manager import RedisManager as r
 import mongo as mg
 
@@ -29,6 +29,10 @@ def dummy_task():
     with open(f"{folder}/task-{now}.txt", "w") as f:
         f.write("hello!")
 
+
+@app.task
+def update_all_teams():
+    teams.update_all_teams_by_league()
 
 @app.task
 def update_selected_league_tables(leagues):
@@ -61,8 +65,8 @@ def update_all_previous_matches_for_league_for_date(fixture_date):
 
 
 @app.task
-def update_previous_matches(fixture_date):
-    all_fixtures = get_fixtures_by_date(fixture_date, True)
+def update_previous_matches(all_fixtures):
+    # all_fixtures = get_fixtures_by_date(fixture_date, True)
     total_added = 0
     home_added = 0
     away_added = 0
@@ -79,7 +83,7 @@ def update_previous_matches(fixture_date):
             away_added = away[0]
         if home_updated and away_updated:
             h2h_added = get_all_h2h_matches(x['home_id'], x['away_id'])
-        total_added += (home_added + away_added + h2h_added)
+        total_added += (home_added + away_added)
         print('Remaining: ' + str(r.get_remaining_counter()))
         print(str(idx + 1) + ' of ' + str(total_fixtures) + ': ' + x['home_name'] + ' vs ' + x['away_name'])
     print(f'{total_added} total matches added')
@@ -100,15 +104,30 @@ def update_h2h_for_todays_matches():
 def update_all_teams_league(main_only):
     if main_only:
         main_leagues = leagues.get_all_main_leagues()[1]
-        for league in main_leagues:
+        alt_leagues = leagues.get_all_alternate_leagues()[1]
+        all_leagues = alt_leagues
+        for league in all_leagues:
             if leagues.check_if_league(league):
                 all_teams = standings.all_teams_in_league(league)
-                for team in all_teams:
-                    teams.update_teams_league(team['team']['id'])
-                    mg.update_one_record("teams", {"id": team['team']['id']},
-                                         {"$set": {"current_league_id": league,
-                                                   "last_league_update": datetime.utcnow()}})
-                    print(f"Updated {team['team']['name']}")
+                try:
+                    for sub_league in all_teams:
+                        for team in sub_league:
+
+                                teams.update_teams_league(team['team']['id'])
+                                mg.update_one_record("teams", {"id": team['team']['id']},
+                                                     {"$set": {"current_league_id": league,
+                                                               "last_league_update": datetime.utcnow()}})
+                                print(f"Updated {team['team']['name']}")
+                except TypeError:
+                    for team in all_teams:
+                        teams.update_teams_league(team['team']['id'])
+                        mg.update_one_record("teams", {"id": team['team']['id']},
+                                             {"$set": {"current_league_id": league,
+                                                       "last_league_update": datetime.utcnow()}})
+                        print(f"Updated {team['team']['name']}")
+
+                    print(f"Error in team {team}")
+                    pass
             else:
                 print("Not a league")
 
@@ -128,13 +147,28 @@ def generate_scores_for_matches(fixture_date):
     else:
         fix = get_fixtures_by_date(fixture_date, True)
     fixtures_list = []
+    counter = 0
     for fixture in fix['fixtures']:
-        print(f"Starting fixture: {fixture['fixture_id']}")
-        fixture['scores'] = analyse_fixture(fixture['fixture_id'], fixture['league_id'], fixture_date)
-        fixtures_list.append(fixture)
-        print(f"Added: {fixture['home_name']} vs {fixture['away_name']}")
+        counter += 1
+        try:
+            if "scores" in fixture:
+                print(f"{fixture['home_name']} vs {fixture['away_name']} Exists")
+            else:
+                print(f"Starting fixture {counter}: {fixture['fixture_id']}")
+                fixture['scores'] = analyse_fixture(fixture['fixture_id'], fixture['league_id'], fixture_date)
+                fixtures_list.append(fixture)
+                print(f"Added: {fixture['home_name']} vs {fixture['away_name']}")
+
+        except KeyError:
+            print(f"Starting fixture {counter}: {fixture['fixture_id']}")
+            fixture['scores'] = analyse_fixture(fixture['fixture_id'], fixture['league_id'], fixture_date)
+            fixtures_list.append(fixture)
+            print(f"Added: {fixture['home_name']} vs {fixture['away_name']}")
+
     mg.update_one_record("upcoming_fixtures", querystring,
                          {"$set": {"fixtures": fixtures_list}})
+    mg.update_one_record("upcoming_fixtures", querystring,
+                         {"$set": {"complete": True}})
 
     return fixtures_list
 
@@ -143,12 +177,33 @@ def generate_scores_for_matches(fixture_date):
 def update_fixtures_for_date(fixture_date):
     filtered_date = fixture_date.strftime('%Y-%m-%d')
     querystring = {"date": filtered_date}
-    exists = mg.document_exists("upcoming_fixtures", querystring)
-    if exists:
-        mg.delete_one_record("upcoming_fixtures", querystring)
-    time.sleep(10)
-    get_fixtures_by_date(fixture_date, True)
-    print("Updated Fixtures")
-    time.sleep(10)
-    generate_scores_for_matches(fixture_date)
-    print("Generated Scores")
+    fixtures_exist = mg.document_exists("upcoming_fixtures", querystring)
+    if fixtures_exist:
+        try:
+            complete = mg.get_single_info("upcoming_fixtures", querystring)['complete']
+        except KeyError:
+            complete = False
+        if not complete:
+            # Calculate scores
+            generate_scores_for_matches(fixture_date)
+            print("Generated Scores")
+            time.sleep(5)
+            return "Complete"
+        else:
+            print("Already Exists")
+            pass
+    else:
+        # Get all fixtures and odds
+        all_fixtures = get_fixtures_by_date(fixture_date, True)
+        print("Updated Fixtures")
+        time.sleep(5)
+        # Update all teams previous fixtures
+        update_previous_matches(all_fixtures)
+        print("Updated Previous matches")
+        time.sleep(5)
+        generate_scores_for_matches(fixture_date)
+        print("Generated Scores")
+        time.sleep(5)
+        return "Complete"
+
+

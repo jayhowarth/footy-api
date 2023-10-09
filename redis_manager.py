@@ -3,7 +3,7 @@ import redis
 # host = 'localhost'  # local
 host = '192.168.0.246' # Hogstation
 port = 49159 # Hogstation
-# port = 6379  # local
+#port = 6379  # local
 
 
 class RedisManager:

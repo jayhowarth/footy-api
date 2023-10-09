@@ -7,13 +7,14 @@ from pydantic import BaseModel
 import mongo as mg
 
 import leagues
-import stat_calculator
+# import stat_calculator
 # from task import update_selected_league_tables, update_all_previous_matches_for_league
 import task
 import teams
-from leagues import update_main_leagues, get_league_info_by_id, get_all_main_leagues
+from leagues import update_main_leagues, update_alternate_leagues, get_league_info_by_id, get_all_main_leagues
 from betting_odds import get_betting_odds_for_date
-from stat_calculator import analyse_fixture
+from standings import update_league_standings_by_league
+from calculator.payload_generator import analyse_fixture, get_top_results
 import fixtures
 
 from datetime import datetime, date, timedelta
@@ -80,6 +81,21 @@ async def update_main_league(league_id: int):
     return response
 
 
+@app.patch("/api/alt_leagues/{league_id}")
+async def update_alternate_league(league_id: int):
+    """
+    Updates/Adds the is_main values for single league
+    :param league_id: int
+    :return: Boolean
+    """
+    if league_id > 0:
+        is_alt = True
+    else:
+        is_alt = False
+    response = update_alternate_leagues(abs(league_id), is_alt)
+    return response
+
+
 @app.post("/api/fixtures")
 async def get_fixtures(fix: Fixtures):
     """
@@ -129,7 +145,18 @@ async def update_tables(leagues_list: list[MainLeague]):
     return leagues_response
 
 
-@app.get("/api/update_all_main_leagues")
+@app.get("/api/update_league_table/{league}")
+async def update_single_table(league):
+    """
+    Updates the league tables
+    :param leagues: list of league objects to update
+    :return: Json of leagues updated
+    """
+    update_league_standings_by_league(int(league))
+    return f"Update {league} League"
+
+
+@app.get("/api/update_league_tables")
 async def update_tables():
     """
     Updates the league tables
@@ -137,9 +164,12 @@ async def update_tables():
     :return: Json of leagues updated
     """
     main_leagues = leagues.get_all_main_leagues()
-    main_leagues = main_leagues[0]
-    task.update_selected_league_tables.delay(main_leagues)
-    return "Update All Leagues"
+    alt_leagues = leagues.get_all_alternate_leagues()
+    # main_leagues = main_leagues[0]
+    # alt_leagues = alt_leagues[0]
+    all_leagues = main_leagues[0] + alt_leagues[0]
+    task.update_selected_league_tables.delay(all_leagues)
+    return "Update All League Tables"
 
 
 @app.post("/api/update_teams_in_league")
@@ -163,6 +193,7 @@ async def update_teams_in_todays_fixtures(fix: Fixtures):
     task.update_fixtures_for_date.delay(fix.date)
     return f"Updating fixtures for {fix.date}"
 
+
 @app.get("/api/update_teams_leagues_for_date")
 async def update_all_teams_previous_matches_in_league(fix: Fixtures):
     """
@@ -184,6 +215,15 @@ async def update_all_leagues():
     return leagues.add_leagues()
 
 
+@app.get("/api/update_all_teams")
+async def update_all_team():
+    """
+    :return: No leagues added
+    """
+    task.update_all_teams.delay()
+    return "Updating Teams"
+
+
 @app.post("/api/update_all_teams_league")
 async def update_all_teams_league(fix: Fixtures):
     task.update_all_teams_league.delay(fix.is_main)
@@ -195,8 +235,11 @@ async def update_all_teams_league(fix: Fixtures):
 
 @app.get("/api/generate_scores")
 def generate_all_scores_for_date(fix: Fixtures):
-    task.generate_scores_for_matches.delay(fix.date)
-    return "Generating Scores"
+    try:
+        task.generate_scores_for_matches.delay(fix.date)
+        return "Generating Scores"
+    except task.generate_scores_for_matches.OpationalError as exc:
+        print('celery error')
 
 
 @app.get("/api/test")
@@ -206,8 +249,9 @@ async def test():
     """
     # analyse_fixture(1044309, datetime.today())
     # fixtures.get_all_leagues_playing_for_date(datetime.today())
-    #x = mg.get_all_records("teams")
-    dd = datetime.strptime("2023-10-02", '%Y-%m-%d')
-    # stat_calculator.analyse_fixture(1067562, 95, dd)
-    stat_calculator.get_top_results(dd)
-    return "N"
+    # x = mg.get_all_records("teams")
+    dd = datetime.strptime("2023-10-09", '%Y-%m-%d')
+    res = analyse_fixture(980246, 473, dd)
+    # res = get_top_results(dd)
+    # teams.add_one_team(21595)
+    return res

@@ -10,7 +10,8 @@ url_local = "amqp://guest@localhost:5672//"
 
 app = Celery('footy',
              broker=url_hog,
-             include=['task'])
+             include=['task'],
+             broker_connection_retry_on_startup=False)
 
 #app = Celery('footy', broker='amqp://guest@localhost//')
 # redis_url = os.getenv("REDIS_URL", "redis://192.168.0.246:49154")

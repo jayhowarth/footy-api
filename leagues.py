@@ -209,6 +209,20 @@ def get_all_main_leagues():
     return main_league_list, main_league_list_ids
 
 
+def get_all_alternate_leagues():
+    alt_league_list = []
+    alt_league_list_ids = []
+    main_leagues = mg.get_multiple_info("leagues", {"is_alt": True})
+    for league in main_leagues:
+        alt_league_list.append({
+            "id": league['id'],
+            "name": league['name'],
+            "country": league['country_name']
+        })
+        alt_league_list_ids.append(league['id'])
+    return alt_league_list, alt_league_list_ids
+
+
 def check_diff_fixture_main_leagues(date_string):
     querystring = {"date": date_string}
     current_fixtures = mg.get_single_info("upcoming_fixtures", querystring)
@@ -233,13 +247,36 @@ def update_main_leagues(league_id, is_main):
     :return: String of updated league
     """
     if mg.count_documents("leagues", {"id": league_id}) != 0:
-        if mg.check_if_league_in_main({"id": league_id}):
+        if mg.check_if_league_in_main({"id": league_id}) and not is_main:
             mg.update_one_record("leagues", {"id": league_id}, {"$set": {"is_main": is_main}})
             league_added = get_league_info_by_id(league_id)
-            if is_main:
-                return f"Added {league_added['name']} ({league_added['country']})"
-            else:
-                return f"Removed {league_added['name']} ({league_added['country']})"
+            return f"Removed {league_added['name']} ({league_added['country']})"
+        elif not mg.check_if_league_in_main({"id": league_id}) and is_main:
+            mg.update_one_record("leagues", {"id": league_id}, {"$set": {"is_main": is_main}})
+            league_added = get_league_info_by_id(league_id)
+            return f"Added {league_added['name']} ({league_added['country']})"
+        else:
+            return "League already exists"
+    else:
+        return "League Does Not Exist"
+
+
+def update_alternate_leagues(league_id, is_alt):
+    """
+    Patches league to set is_alt to Boolean
+    :param league_id: int
+    :param is_alt: Boolean
+    :return: String of updated league
+    """
+    if mg.count_documents("leagues", {"id": league_id}) != 0:
+        if mg.check_if_league_in_alternate({"id": league_id}) and not is_alt:
+            mg.update_one_record("leagues", {"id": league_id}, {"$set": {"is_alt": is_alt}})
+            league_added = get_league_info_by_id(league_id)
+            return f"Removed {league_added['name']} ({league_added['country']})"
+        elif not mg.check_if_league_in_alternate({"id": league_id}) and is_alt:
+            mg.update_one_record("leagues", {"id": league_id}, {"$set": {"is_alt": is_alt}})
+            league_added = get_league_info_by_id(league_id)
+            return f"Added {league_added['name']} ({league_added['country']})"
         else:
             return "League already exists"
     else:
@@ -315,5 +352,14 @@ def check_if_league_has_statistics(league_id):
 
 def get_league_standings_stats(team_id, league_id):
     standings = all_teams_in_league(league_id)
-    return [x for x in standings if x['team']['id'] == team_id]
+    try:
+        for table in standings:
+            for x in table:
+                if x['team']['id'] == team_id:
+                    return x, len(table)
+    except TypeError:
+        for x in standings:
+            if x['team']['id'] == team_id:
+                return x, len(x)
+
 

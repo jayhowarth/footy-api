@@ -10,7 +10,8 @@ from api_manager import APIManager as api
 from leagues import check_league_attributes, \
     check_if_league_has_events, \
     check_if_league_has_statistics, \
-    get_all_main_leagues
+    get_all_main_leagues, \
+    get_all_alternate_leagues
 # from teams import add_one_team, update_teams_previous_matches
 import teams
 
@@ -18,12 +19,14 @@ matches_url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
 
 
 def get_fixtures_by_date(fixture_date, filter_league):
-    #converted_date = parser.parse(fixture_date)
+    # converted_date = parser.parse(fixture_date)
     ppf = past_present_future(fixture_date)
     filtered_date = fixture_date.strftime('%Y-%m-%d')
     main_league_list = []
+    alt_league_list = []
     if filter_league:
         main_league_list = get_all_main_leagues()
+        alt_league_list = get_all_alternate_leagues()
     else:
         pass
     querystring = {"date": filtered_date}
@@ -83,7 +86,41 @@ def get_fixtures_by_date(fixture_date, filter_league):
                                                             date,
                                                             x,
                                                             betting_odds_list))
-        if filter_league:
+        if len(fixtures_list) < 20 and filter_league:
+            # Append Alternate fixtures
+            alt_fixture_id_list = get_list_of_alternate_fixture_ids(fixture_array)
+            betting_odds_list = betting_odds.get_betting_odds_for_date(filtered_date, alt_fixture_id_list)
+            for idx, x in enumerate(fixture_array):
+                if x['league']['id'] not in alt_league_list[1]:
+                    pass  # del fixture_array[idx]
+                else:
+                    fixture_status = x['fixture']['status']['short']
+                    date = x['fixture']['date']
+                    league_attr = check_league_attributes(x['league']['id'])
+                    fixture_date = datetime.fromisoformat(date)
+                    now = datetime.utcnow().replace(tzinfo=pytz.utc)
+                    fixture_in_future = now < fixture_date
+                    if fixture_status in status_array:
+                        fixtures_list.append(build_fixture_list(league_attr,
+                                                                fixture_status,
+                                                                date,
+                                                                x,
+                                                                betting_odds_list))
+                    else:
+                        fixture_status = x['fixture']['status']['short']
+                        date = x['fixture']['date']
+                        league_attr = check_league_attributes(x['league']['id'])
+                        fixture_date = datetime.fromisoformat(date)
+                        now = datetime.utcnow().replace(tzinfo=pytz.utc)
+                        if fixture_status in status_array:
+                            fixtures_list.append(build_fixture_list(league_attr,
+                                                                    fixture_status,
+                                                                    date,
+                                                                    x,
+                                                                    betting_odds_list))
+            save_upcoming_fixtures(filtered_date, fixtures_list)
+
+        else:
             save_upcoming_fixtures(filtered_date, fixtures_list)
         return fixtures_list
 
@@ -254,6 +291,15 @@ def get_list_of_main_fixture_ids(fixtures):
     return fixture_id_list
 
 
+def get_list_of_alternate_fixture_ids(fixtures):
+    fixture_id_list = []
+    alt_leagues = leagues.get_all_alternate_leagues()
+    for fixture in fixtures:
+        if fixture['league']['id'] in alt_leagues[1]:
+            fixture_id_list.append(fixture['fixture']['id'])
+    return fixture_id_list
+
+
 def get_fixture_events(fixture_id, league_id):
     querystring = {"fixture": fixture_id}
     if check_if_league_has_events(league_id):
@@ -398,7 +444,7 @@ def get_last_x_away_matches(team_id, num):
 
 
 def get_all_leagues_playing_for_date(fixture_date):
-    #converted_date = parser.parse(fixture_date)
+    # converted_date = parser.parse(fixture_date)
     filtered_date = fixture_date.strftime('%Y-%m-%d')
     querystring = {"date": filtered_date}
     if mg.document_exists("upcoming_fixtures", querystring):
@@ -412,5 +458,5 @@ def get_all_leagues_playing_for_date(fixture_date):
     set_leagues = set(league_id_list)
     list_league_objects = []
     for x in set_leagues:
-            list_league_objects.append(leagues.get_league_info_by_id(x))
+        list_league_objects.append(leagues.get_league_info_by_id(x))
     return list_league_objects

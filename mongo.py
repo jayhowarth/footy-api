@@ -137,8 +137,20 @@ def check_if_league_in_main(query):
     record = collection_name.find_one(query)
     try:
         if record['is_main'] is True:
-            return False
-        else:
             return True
+        else:
+            return False
     except KeyError:
-        return True
+        return False
+
+def check_if_league_in_alternate(query):
+    collection_name = dbname["leagues"]
+    record = collection_name.find_one(query)
+    try:
+        if record['is_alt'] is True:
+            return True
+        else:
+            return False
+    except KeyError:
+        return False
+

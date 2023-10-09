@@ -11,10 +11,54 @@ leagues_url = "https://api-football-v1.p.rapidapi.com/v3/leagues"
 matches_url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
 
 
+def update_all_teams_by_league():
+    teams_updated = []
+    all_leagues = mg.get_multiple_info("leagues", {"is_alt": True})
+    for x in all_leagues:
+        added = update_teams_by_league(x['id'])
+        if added:
+            teams_updated.append({f"Leagues added {x['name']}"})
+    if len(teams_updated) > 0:
+        return teams_updated
+    else:
+        return "No teams added"
+
+
+def update_teams_by_league(league_id):
+    current_season = datetime.today().strftime("%Y")
+    querystring = {"league": league_id, "season": current_season}
+    teams_response = api.get_request(teams_url, querystring)
+    json_response = json.loads(teams_response)
+    total = json_response['results']
+    no_teams_added = 0
+    teams = json_response['response']
+    if total > 0:
+        for x in teams:
+            team_id = x["team"]["id"]
+            team = {
+                "id": team_id,
+                "name": x["team"]["name"],
+                "code": x["team"]["code"],
+                "country": x["team"]["country"],
+                "founded": x["team"]["founded"],
+                "national": x["team"]["national"],
+                "logo": x["team"]["logo"],
+                "venue": x["venue"]
+            }
+
+            count = mg.count_documents("teams", {"id": team_id})
+            if count == 0 or count is None:
+                mg.add_record("teams", team)
+                no_teams_added += 1
+
+        return f'{no_teams_added} teams added'
 def get_team_name_from_id(team_id):
     querystring = {"id": team_id}
-    record = mg.get_single_info("teams", querystring)
-    return record['name']
+    try:
+        record = mg.get_single_info("teams", querystring)
+        return record['name']
+    except KeyError:
+        return 'error'
 
 
 def get_team_league_from_id(team_id):
@@ -176,8 +220,3 @@ def update_teams_league(team_id):
     else:
         status = "up to date"
         return f"{get_team_name_from_id(team_id)} {status}"
-
-
-
-
-

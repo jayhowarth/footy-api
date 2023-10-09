@@ -47,7 +47,7 @@ def update_league_standings_by_league(league_id):
                         "logo": x["league"]["logo"],
                         "flag": x["league"]["flag"],
                         "season": x["league"]["season"],
-                        "standings": x["league"]["standings"][0],
+                        "standings": x["league"]["standings"],
                         "last_updated": datetime.utcnow()
                         }
                     if count == 0:
